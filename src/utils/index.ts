@@ -1,6 +1,14 @@
+// inspiraUI
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+// import { setWindowAppConfig } from '@/store/modules/app';
+
 import type { App, Plugin } from 'vue';
 import 'virtual:svg-icons-register';
-// import { setWindowAppConfig } from '@/store/modules/app';
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+export type ObjectValues<T> = T[keyof T];
 
 // 定义全局钩子
 export const configMainGlobalProperties = (app: App<Element>): void => {

@@ -1,144 +1,161 @@
 <script setup lang="ts">
-  import SvgIcon from '@/components/SvgIcon/index.vue';
-  import VisitAnalysis from './components/AnalysisChart.vue';
-  import Comment from './components/Comment.vue';
-  import PieChart from './components/PieChart.vue';
-  import WordCloud from './components/WordCloud.vue';
-
+  import { ref } from 'vue';
+  import NeuralBg from '@/components/ui/bg-neural/NeuralBg.vue';
+  import loadingLight from './components/loadingLight.vue';
+  import threeLine from './components/threeLine.vue';
+  import videoCard from './components/videoCard.vue';
   defineOptions({
     name: 'RtWelcome',
   });
-
-  const speedList = [
-    {
-      title: '待办事项',
-      online: 24,
-      total: 70,
-    },
-    {
-      title: '待办任务',
-      online: 39,
-      total: 100,
-    },
-    {
-      title: '目标计划',
-
-      online: 5,
-      total: 10,
-    },
-    {
-      title: '评论回复',
-      online: 10,
-      total: 40,
-    },
-  ];
-
-  const value = (online: number, total: number) => {
-    return Math.round((online / total) * 100);
+  const tabList = ref([{ name: '首页' }, { name: '动图' }, { name: '背景' }, { name: '最后页' }]);
+  const activeIndex = ref<number | null>(1);
+  // -----------------------方法--------------------------
+  const changeTab = (index: number) => {
+    activeIndex.value = index;
   };
 </script>
 
 <template>
-  <div>
-    <el-row :gutter="20" class="enter-y">
-      <el-col v-for="(item, index) in speedList" :key="index" :xs="24" :sm="24" :md="6" :lg="6" :xl="6">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header cursor">
-              <span>{{ item.title }}</span>
-              <SvgIcon name="iEL-arrow-right" />
-            </div>
-          </template>
-          <div class="card-content">
-            <div class="numerical-value">
-              <span class="number">{{ item.online }}/{{ item.total }}</span>
-              <span>Online/Total</span>
-            </div>
-            <el-progress :text-inside="true" :stroke-width="26" :percentage="value(item.online, item.total)" />
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-    <el-row :gutter="20" class="enter-y">
-      <el-col :xs="24" :sm="24" :md="18" :lg="18" :xl="18">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header cursor">
-              <span>任务数据</span>
-            </div>
-          </template>
-          <VisitAnalysis />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="6" :lg="6" :xl="6">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header cursor">
-              <span>任务数据</span>
-            </div>
-          </template>
-          <PieChart />
-        </el-card>
-      </el-col>
-    </el-row>
-    <el-row :gutter="20" class="enter-y">
-      <el-col :xs="24" :sm="24" :md="18" :lg="18" :xl="18">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header cursor">
-              <span>评论列表</span>
-            </div>
-          </template>
-          <Comment />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="6" :lg="6" :xl="6">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header cursor">
-              <span>词云</span>
-            </div>
-          </template>
-          <WordCloud />
-        </el-card>
-      </el-col>
-    </el-row>
+  <div class="body-content">
+    <div class="top-naveTab">
+      <div v-if="activeIndex == 0" class="backNeura">
+        <div class="relative flex h-96 min-h-96 w-full items-center justify-center text-xl">
+          <NeuralBg class="custom-size" />
+        </div>
+        <div class="title-first">样式示例</div>
+      </div>
+      <div v-if="activeIndex == 1" class="video-content">
+        <videoCard />
+        <loadingLight style="margin-top: 30px" />
+      </div>
+      <threeLine v-if="activeIndex == 2" />
+      <div class="btn-content-top">
+        <button
+          v-for="(item, index) in tabList"
+          :key="index"
+          :class="{ active: activeIndex === index }"
+          :style="{ background: activeIndex == 1 ? 'rgba(167, 139, 250, 0.8)' : '' }"
+          @click="changeTab(index)"
+        >
+          <span class="transition" />
+          <span class="gradient" />
+          <span class="label">{{ item.name }}</span>
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-  .box-card {
-    margin-bottom: 20px;
+  .body-content {
+    background-color: #12161e;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    z-index: 3;
+  }
 
-    :deep(.el-card__header) {
-      padding-bottom: 0;
-      border: none;
+  .top-naveTab {
+    position: relative;
+
+    .video-content {
+      position: absolute;
+      left: 25%;
+      top: 100px;
     }
+  }
+  .video-content {
+    width: calc(50% - 60px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: 600;
-    }
+  .title-first {
+    position: absolute;
+    font-size: 25px;
+    color: white;
+    left: 45%;
+  }
 
-    .card-content {
-      :deep(.el-progress-bar__outer) {
-        height: 17px !important;
-      }
+  .backNeura {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-      .numerical-value {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        margin-bottom: 10px;
+  .custom-size {
+    width: 100%;
+    height: 80vh;
+  }
 
-        .number {
-          color: var(--text-color-primary);
-          font-size: var(--font-size-extra-large);
-          font-weight: 600;
-        }
-      }
-    }
+  .btn-content-top {
+    position: absolute;
+    top: 20px;
+    left: 20%;
+    display: flex;
+    justify-content: space-between;
+    width: 60%;
+  }
+
+  button {
+    font-size: 17px;
+    padding: 1em 2.7em;
+    font-weight: 500;
+    background: transparent;
+    color: white;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.6em;
+    cursor: pointer;
+  }
+
+  .gradient {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    border-radius: 0.6em;
+    margin-top: -0.25em;
+    background-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.3));
+  }
+
+  .label {
+    position: relative;
+    top: -1px;
+  }
+
+  .transition {
+    transition: all 500ms cubic-bezier(0, 0, 0.2, 1);
+    background:
+      radial-gradient(46.6% 37.99% at 80.03% 84.83%, #1dd6ff 0, rgba(29, 214, 255, 0.2) 70%, rgba(16, 22, 33, 0) 90%),
+      radial-gradient(46.6% 50.99% at 18.1% 9.03%, #0075ff 0, rgba(0, 117, 255, 0.2) 70%, rgba(16, 22, 33, 0) 90%),
+      rgba(85, 134, 255, 0.2);
+    border-radius: 9999px;
+    width: 0;
+    height: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  button:hover .transition {
+    width: 14em;
+    height: 14em;
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+
+  button.active {
+    background:
+      radial-gradient(46.6% 37.99% at 80.03% 84.83%, #1dd6ff 0, rgba(29, 214, 255, 0.2) 70%, rgba(16, 22, 33, 0) 90%),
+      radial-gradient(46.6% 50.99% at 18.1% 9.03%, #0075ff 0, rgba(0, 117, 255, 0.2) 70%, rgba(16, 22, 33, 0) 90%),
+      rgba(85, 134, 255, 0.2);
   }
 </style>
