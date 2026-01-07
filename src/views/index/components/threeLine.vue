@@ -22,10 +22,10 @@
   const vertexShader = `
   varying vec2 vUv;
   void main() {
-    vUv = uv;
+    vUv = uv;-+
     gl_Position = vec4(position, 1.0);
   }
-`;
+`; 
 
   const fragmentShader = `
   uniform vec2 r;
