@@ -2,7 +2,7 @@
     <div class="tech-login-container">
         <div class="bg-layer">
             <img src="@/assets/image/动图背景.webp" alt="Animated Background" class="bg-image" />
-            <div class="bg-mask"></div>
+            <!-- <div class="bg-mask"></div> -->
             <div class="scan-line"></div>
         </div>
 
@@ -114,12 +114,18 @@ const handleLogin = () => {
     /* 最底层 */
 }
 
-.bg-image {
+/* .bg-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* 保证图片铺满且不拉伸 */
     display: block;
+} */
+.bg-image {
+  width: 100%;
+  height: 100%;
+  /* object-fit: cover; 
+  object-position: center;
+  display: block; */
 }
 
 .bg-mask {

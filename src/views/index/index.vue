@@ -9,7 +9,7 @@ import videoCard from './components/videoCard.vue';
 defineOptions({
   name: 'RtWelcome',
 });
-const tabList = ref([{ name: '首页' }, { name: '动图' }, { name: '背景' }, { name: '最后页' }]);
+const tabList = ref([{ name: '首页' }, { name: '动图' }, { name: '背景' }, { name: '登录' }, { name: '最后页' }]);
 const activeIndex = ref<number | null>(1);
 // -----------------------方法--------------------------
 const changeTab = (index: number) => {
@@ -31,7 +31,8 @@ const changeTab = (index: number) => {
         <loadingLight style="margin-top: 30px" />
       </div>
       <threeLine v-if="activeIndex == 2" />
-      <backgroundLogin v-if="activeIndex == 3" />
+      <backgroundThree v-if="activeIndex == 3" />
+      <backgroundLogin v-if="activeIndex == 4" />
       <div class="btn-content-top">
         <button v-for="(item, index) in tabList" :key="index" :class="{ active: activeIndex === index }"
           :style="{ background: activeIndex == 1 ? 'rgba(167, 139, 250, 0.8)' : '' }" @click="changeTab(index)">
