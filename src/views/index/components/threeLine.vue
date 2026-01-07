@@ -1,6 +1,6 @@
 <script setup lang="ts">
+  import * as THREE from 'three';
   import { onBeforeUnmount, onMounted, ref } from 'vue';
-
   const webglCanvas = ref<HTMLCanvasElement | null>(null);
 
   let scene: THREE.Scene,
@@ -223,20 +223,22 @@
 <style lang="scss" scoped>
   .word-cloud-container {
     width: 100%;
+
     /* 设置您想要的宽度 */
     height: 80vh;
+    margin: 0 auto;
+    overflow: hidden;
+
     /* 设置您想要的高度 */
     background-color: white;
-    overflow: hidden;
-    margin: 0 auto;
   }
 
   canvas {
+    display: block;
     // position: absolute;
     // top: 0;
     // left: 0;
     width: 100%;
     height: 100%;
-    display: block;
   }
 </style>
