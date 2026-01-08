@@ -1,64 +1,122 @@
 <template>
-    <div class="login-container">
-        <div class="bg-layer">
-            <img src="@/assets/image/动图背景.webp" alt="background" class="bg-image" />
-            <div class="bg-mask"></div>
-        </div>
-
-        <div class="login-content">
-            <h1>SYSTEM LOGIN</h1>
-        </div>
+  <div id="app">
+    <canvas ref="canvasRef" id="canvas"></canvas>
+    <div class="hero">
+      <h1>{{ title }}</h1>
+      <h2>{{ subtitle }}</h2>
+      <a target="_blank" :href="framerLink">{{ linkText }}</a>
     </div>
+  </div>
 </template>
 
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue';
+
+// 定义组件属性
+interface Props {
+  title?: string;
+  subtitle?: string;
+  framerLink?: string;
+  linkText?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  title: 'Tubes',
+  subtitle: 'Cursor',
+  framerLink: 'https://www.framer.com/@kevin-levron/',
+  linkText: 'Framer Component'
+});
+
+// 引用canvas元素
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+
+// 初始化画布
+const initCanvas = () => {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  
+  // 设置画布尺寸
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  // 这里可以添加您的绘图逻辑
+  drawScene(ctx);
+};
+
+// 绘制场景
+const drawScene = (ctx: CanvasRenderingContext2D) => {
+  // 示例绘制逻辑 - 可根据实际需求修改
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+};
+
+// 窗口大小调整处理
+const handleResize = () => {
+  initCanvas();
+};
+
+onMounted(() => {
+  initCanvas();
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
+</script>
+
 <style scoped>
-.login-container {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: #000;
-    /* 动图加载出来前的底色 */
+#app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.bg-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.bg-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* 关键：保证图片铺满且不比例失调 */
-    display: block;
+.hero {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 10;
 }
 
-/* 遮罩层：防止背景太亮影响文字阅读 */
-.bg-mask {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    /* 30%透明度的黑 */
-    z-index: 1;
+.hero h1 {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  color: white;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.login-content {
-    position: relative;
-    z-index: 2;
-    /* 放在最上层 */
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: #fff;
+.hero h2 {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.hero a {
+  color: #fff;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.hero a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  text-decoration: none;
 }
 </style>

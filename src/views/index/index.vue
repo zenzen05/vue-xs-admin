@@ -5,6 +5,7 @@ import loadingLight from './components/loadingLight.vue';
 import threeLine from './components/threeLine.vue';
 import backgroundThree from './components/backgroundThree.vue';
 import backgroundLogin from './components/backgroundLogin.vue';
+import backgroundWEBP from './components/backgroundWEBP.vue';
 import videoCard from './components/videoCard.vue';
 defineOptions({
   name: 'RtWelcome',
@@ -31,8 +32,9 @@ const changeTab = (index: number) => {
         <loadingLight style="margin-top: 30px" />
       </div>
       <threeLine v-if="activeIndex == 2" />
-      <backgroundThree v-if="activeIndex == 3" />
+      <!-- <backgroundThree v-if="activeIndex == 3" /> -->
       <backgroundLogin v-if="activeIndex == 4" />
+      <backgroundWEBP v-if="activeIndex == 3" />
       <div class="btn-content-top">
         <button v-for="(item, index) in tabList" :key="index" :class="{ active: activeIndex === index }"
           :style="{ background: activeIndex == 1 ? 'rgba(167, 139, 250, 0.8)' : '' }" @click="changeTab(index)">
