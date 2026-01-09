@@ -1,11 +1,11 @@
 <template>
     <div class="tech-login-container">
         <div class="bg-layer">
-            <img src="@/assets/image/动图背景.webp" alt="Animated Background" class="bg-image" />
-            <!-- <div class="bg-mask"></div> -->
+            <video class="bg-video" autoplay loop muted playsinline>
+                <source src="@/assets/image/threeBG.mp4" type="video/mp4" />
+            </video>
             <div class="scan-line"></div>
         </div>
-
         <div class="login-box">
             <div class="corner-mark top-left"></div>
             <div class="corner-mark top-right"></div>
@@ -114,18 +114,26 @@ const handleLogin = () => {
     /* 最底层 */
 }
 
-/* .bg-image {
+.bg-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+    /* 防止视频溢出 */
+}
+
+/* 视频背景 */
+.bg-video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    display: block;
-} */
-.bg-image {
-  width: 100%;
-  height: 100%;
-  /* object-fit: cover; 
-  object-position: center;
-  display: block; */
+    /* 关键：保证视频填满屏幕且不变形 */
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 .bg-mask {

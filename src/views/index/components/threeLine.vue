@@ -1,33 +1,33 @@
 <script setup lang="ts">
-  import * as THREE from 'three';
-  import { onBeforeUnmount, onMounted, ref } from 'vue';
-  const webglCanvas = ref<HTMLCanvasElement | null>(null);
+import * as THREE from 'three';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+const webglCanvas = ref<HTMLCanvasElement | null>(null);
 
-  let scene: THREE.Scene,
-    camera: THREE.OrthographicCamera,
-    renderer: THREE.WebGLRenderer,
-    material: THREE.ShaderMaterial,
-    clock: THREE.Clock;
+let scene: THREE.Scene,
+  camera: THREE.OrthographicCamera,
+  renderer: THREE.WebGLRenderer,
+  material: THREE.ShaderMaterial,
+  clock: THREE.Clock;
 
-  const mouse = new THREE.Vector2(0.5, 0.5);
-  const targetMouse = new THREE.Vector2(0.5, 0.5);
+const mouse = new THREE.Vector2(0.5, 0.5);
+const targetMouse = new THREE.Vector2(0.5, 0.5);
 
-  const uniforms = {
-    t: { value: 0.0 },
-    r: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-    mouse: { value: new THREE.Vector2(0.5, 0.5) },
-  };
+const uniforms = {
+  t: { value: 0.0 },
+  r: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+  mouse: { value: new THREE.Vector2(0.5, 0.5) },
+};
 
-  // Shader functions
-  const vertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;-+
-    gl_Position = vec4(position, 1.0);
-  }
-`; 
+// Shader functions
+const vertexShader = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position, 1.0);
+}
+`;
 
-  const fragmentShader = `
+const fragmentShader = `
   uniform vec2 r;
   uniform float t;
   uniform vec2 mouse;
@@ -137,81 +137,81 @@
   }
 `;
 
-  function init() {
-    if (!webglCanvas.value) return;
+function init() {
+  if (!webglCanvas.value) return;
 
-    scene = new THREE.Scene();
-    clock = new THREE.Clock();
-    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-    camera.position.z = 1;
+  scene = new THREE.Scene();
+  clock = new THREE.Clock();
+  camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 1;
 
-    renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      canvas: webglCanvas.value,
-    });
-
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    material = new THREE.ShaderMaterial({
-      uniforms,
-      vertexShader,
-      fragmentShader,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('touchmove', onTouchMove);
-    window.addEventListener('resize', onWindowResize);
-  }
-
-  function onMouseMove(event: MouseEvent) {
-    targetMouse.x = event.clientX / window.innerWidth;
-    targetMouse.y = 1.0 - event.clientY / window.innerHeight;
-  }
-
-  function onTouchMove(event: TouchEvent) {
-    if (event.touches.length > 0) {
-      targetMouse.x = event.touches[0].clientX / window.innerWidth;
-      targetMouse.y = 1.0 - event.touches[0].clientY / window.innerHeight;
-    }
-  }
-
-  function onWindowResize() {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    uniforms.r.value.set(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-  }
-
-  function animate() {
-    requestAnimationFrame(animate);
-    uniforms.t.value = clock.getElapsedTime();
-    mouse.lerp(targetMouse, 0.05);
-    uniforms.mouse.value.copy(mouse);
-    renderer.render(scene, camera);
-  }
-
-  onMounted(() => {
-    init();
-    animate();
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    canvas: webglCanvas.value,
   });
 
-  onBeforeUnmount(() => {
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('touchmove', onTouchMove);
-    window.removeEventListener('resize', onWindowResize);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
 
-    if (renderer) {
-      renderer.dispose();
-    }
-
-    if (material) {
-      material.dispose();
-    }
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
   });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('touchmove', onTouchMove);
+  window.addEventListener('resize', onWindowResize);
+}
+
+function onMouseMove(event: MouseEvent) {
+  targetMouse.x = event.clientX / window.innerWidth;
+  targetMouse.y = 1.0 - event.clientY / window.innerHeight;
+}
+
+function onTouchMove(event: TouchEvent) {
+  if (event.touches.length > 0) {
+    targetMouse.x = event.touches[0].clientX / window.innerWidth;
+    targetMouse.y = 1.0 - event.touches[0].clientY / window.innerHeight;
+  }
+}
+
+function onWindowResize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  uniforms.r.value.set(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  uniforms.t.value = clock.getElapsedTime();
+  mouse.lerp(targetMouse, 0.05);
+  uniforms.mouse.value.copy(mouse);
+  renderer.render(scene, camera);
+}
+
+onMounted(() => {
+  init();
+  animate();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onMouseMove);
+  window.removeEventListener('touchmove', onTouchMove);
+  window.removeEventListener('resize', onWindowResize);
+
+  if (renderer) {
+    renderer.dispose();
+  }
+
+  if (material) {
+    material.dispose();
+  }
+});
 </script>
 
 <template>
@@ -221,24 +221,24 @@
 </template>
 
 <style lang="scss" scoped>
-  .word-cloud-container {
-    width: 100%;
+.word-cloud-container {
+  width: 100%;
 
-    /* 设置您想要的宽度 */
-    height: 80vh;
-    margin: 0 auto;
-    overflow: hidden;
+  /* 设置您想要的宽度 */
+  height: 80vh;
+  margin: 0 auto;
+  overflow: hidden;
 
-    /* 设置您想要的高度 */
-    background-color: white;
-  }
+  /* 设置您想要的高度 */
+  background-color: white;
+}
 
-  canvas {
-    display: block;
-    // position: absolute;
-    // top: 0;
-    // left: 0;
-    width: 100%;
-    height: 100%;
-  }
+canvas {
+  display: block;
+  // position: absolute;
+  // top: 0;
+  // left: 0;
+  width: 100%;
+  height: 100%;
+}
 </style>
