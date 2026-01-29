@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Three.js Earth Rolling Forward</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000000;
+            background-image: url('loginEarth.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+        }
+
+        #info {
+            position: absolute;
+            top: 40px;
+            width: 100%;
+            text-align: center;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            pointer-events: none;
+            z-index: 10;
+            letter-spacing: 6px;
+            font-weight: bold;
+            font-size: 20px;
+            text-shadow: 0 0 10px rgba(0,100,255,0.8);
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="info">SYSTEM // FULL_COVERAGE</div>
+
+    <script type="x-shader/x-fragment" id="atmosphereFragmentShader">
+        varying vec3 vNormal;
+        void main() {
+            float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 8.0);
+            gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity * 1.35;
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ==========================================
+        // 1. 全局配置
+        // ==========================================
+        const EARTH_RADIUS = 14.6; 
+        const EARTH_OFFSET_Y = -14.9;
+        
+        const INNER_COUNT = 1500; 
+        const INNER_CONNECT_DIST = 3.0; 
+        
+        const FLOAT_COUNT = 60;
+        const FLOAT_CONNECT_DIST = 5.0;
+
+        // ==========================================
+        // 2. 场景初始化
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = null; 
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 14);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor(0x000000, 0); 
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // ==========================================
+        // 3. 光照系统
+        // ==========================================
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+
+        // ==========================================
+        // 4. 地球与材质
+        // ==========================================
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+
+        const textureDay = loader.load(
+            'https://shangbendata.oss-cn-beijing.aliyuncs.com/shangbendata/tmp/loginEarthBG.png',
+            (tex) => {
+                tex.colorSpace = THREE.SRGBColorSpace; 
+                tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                tex.minFilter = THREE.LinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.needsUpdate = true;
+            }
+        );
+        
+        const earthGroup = new THREE.Group();
+        earthGroup.position.y = EARTH_OFFSET_Y;
+
+        // 【修改 1】归零 Z 轴旋转，消除倾斜
+        earthGroup.rotation.z = 0; 
+
+        // 【修改 2】设置一个固定的 Y 轴角度，让正面对着好看的陆地，而不是大海
+        earthGroup.rotation.y = 1.8; 
+
+        scene.add(earthGroup);
+
+        const skyGroup = new THREE.Group();
+        skyGroup.position.y = EARTH_OFFSET_Y;
+        
+        // 【修改 3】外层粒子组也要归零 Z 轴，保持同步
+        skyGroup.rotation.z = 0;
+        
+        scene.add(skyGroup);
+
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: textureDay, 
+            bumpScale: 0.02,
+            shininess: 5,
+        });
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS, 128, 128), earthMat);
+        earthGroup.add(earth);
+
+        const atmosMat = new THREE.ShaderMaterial({
+            vertexShader: `varying vec3 vNormal; void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            fragmentShader: document.getElementById('atmosphereFragmentShader').textContent,
+            side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+        });
+        earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS * 1.06, 128, 128), atmosMat));
+
+
+        // ==========================================
+        // 5. 网络系统
+        // ==========================================
+        function makeTextSprite(message) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = "Bold 20px 'Courier New'"; 
+            ctx.fillStyle = "rgba(255, 255, 255, 1.0)"; 
+            ctx.fillText(message, 40, 38);
+            
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"; 
+            ctx.lineWidth = 1.5; 
+            ctx.beginPath(); ctx.moveTo(0, 32); ctx.lineTo(35, 32); ctx.stroke();
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85, depthWrite: false }));
+        }
+
+        // 斐波那契球体分布
+        function createOrganicData(count, minR, maxR, jitterAmount) {
+            const positions = new Float32Array(count * 3);
+            const moveData = [];
+            const phi = Math.PI * (3 - Math.sqrt(5)); 
+            
+            for (let i = 0; i < count; i++) {
+                const y0 = 1 - (i / (count - 1)) * 2; 
+                const radiusAtY = Math.sqrt(1 - y0 * y0); 
+                const theta0 = phi * i;
+
+                let x = Math.cos(theta0) * radiusAtY; 
+                let y = y0; 
+                let z = Math.sin(theta0) * radiusAtY;
+
+                x += (Math.random() - 0.5) * jitterAmount; 
+                y += (Math.random() - 0.5) * jitterAmount; 
+                z += (Math.random() - 0.5) * jitterAmount;
+
+                const vec = new THREE.Vector3(x, y, z).normalize().multiplyScalar(minR + Math.random() * (maxR - minR));
+                
+                positions[i*3] = vec.x; 
+                positions[i*3+1] = vec.y; 
+                positions[i*3+2] = vec.z;
+                
+                moveData.push({ vx: (Math.random()-0.5) * 0.01, vy: (Math.random()-0.5) * 0.01, vz: (Math.random()-0.5) * 0.01 });
+            }
+            return { positions, moveData };
+        }
+
+        function updateParticles(positions, data, count, minR, maxR, linePositions, connectDistSq, lineGeo) {
+            let lineIdx = 0;
+            const maxLines = linePositions.length / 3;
+            for(let i = 0; i < count; i++) {
+                positions[i*3] += data[i].vx; positions[i*3+1] += data[i].vy; positions[i*3+2] += data[i].vz;
+                const x = positions[i*3], y = positions[i*3+1], z = positions[i*3+2];
+                const dist = Math.sqrt(x*x + y*y + z*z);
+                if(dist > maxR || dist < minR) { data[i].vx *= -1; data[i].vy *= -1; data[i].vz *= -1; }
+                for(let j = i + 1; j < count; j++) {
+                    const dx = positions[i*3] - positions[j*3]; 
+                    const dy = positions[i*3+1] - positions[j*3+1]; 
+                    const dz = positions[i*3+2] - positions[j*3+2];
+                    if(dx*dx + dy*dy + dz*dz < connectDistSq) {
+                        if(lineIdx < maxLines * 3) {
+                            linePositions[lineIdx++] = positions[i*3]; linePositions[lineIdx++] = positions[i*3+1]; linePositions[lineIdx++] = positions[i*3+2];
+                            linePositions[lineIdx++] = positions[j*3]; linePositions[lineIdx++] = positions[j*3+1]; linePositions[lineIdx++] = positions[j*3+2];
+                        }
+                    }
+                }
+            }
+            lineGeo.setDrawRange(0, lineIdx / 3); 
+            lineGeo.attributes.position.needsUpdate = true;
+        }
+
+        const innerResult = createOrganicData(INNER_COUNT, EARTH_RADIUS + 0.15, EARTH_RADIUS + 1.2, 0.2);
+        const innerPos = innerResult.positions; const innerData = innerResult.moveData;
+        const innerGeo = new THREE.BufferGeometry(); innerGeo.setAttribute('position', new THREE.BufferAttribute(innerPos, 3));
+        
+        earthGroup.add(new THREE.Points(innerGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.5, map: loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/disc.png'), blending: THREE.AdditiveBlending, depthWrite: false })));
+        
+        const innerLinePos = new Float32Array(INNER_COUNT * INNER_COUNT * 1.5); 
+        const innerDynamicLineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(innerLinePos, 3).setUsage(THREE.DynamicDrawUsage));
+        earthGroup.add(new THREE.LineSegments(innerDynamicLineGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending })));
+
+        const innerLabels = [];
+        const regionCodes = [
+           "纽约时报",
+"中央广播电视总台",
+"朝日新闻",
+"金融时报",
+"中国农业电影电视中心",
+"印度斯坦时报",
+"中国日报社",
+"中国纺织报社",
+"华纳媒体",
+"美联社",
+"中国食品报社",
+"环球集团",
+"中国建设报社",
+"德国之声",
+"中国工业报社",
+"中国食品安全报社",
+"《福布斯》杂志",
+"《大西洋月刊》",
+"天空新闻台",
+"中国体育报业总社",
+"中国出版传媒商报社",
+"央视新闻",
+"人民中国杂志社",
+"读卖新闻",
+"中国旅游报社",
+"《经济学人》",
+"中国新闻社",
+"日本经济新闻",
+"中国民航报社",
+"南德意志报",
+"中国经济时报社",
+"法兰克福汇报",
+"国际商报社",
+"新华社",
+"路透社",
+"求是杂志社",
+"日本广播协会",
+"检察日报社",
+"海峡时报",
+"中国航空报社",
+"学习时报社",
+"康卡斯特",
+"中国环境报社",
+"国家地理",
+"全国公共广播电台",
+"每日电讯报",
+"ABC新闻",
+"中国中医药报社",
+"韩国广播公司",
+"中国知识产权报社",
+"中国交通报社",
+"华特迪士尼公司",
+"安莎通讯社",
+"中国贸易报社",
+"中国金融杂志社",
+"中国妇女报社",
+"澳大利亚人报",
+"中国青年报社",
+"费加罗报",
+"莫斯科新闻",
+"中国科学报社",
+"法新社",
+"中国航天报社",
+"泰晤士报",
+"共同社",
+"北京周报社",
+"CBS新闻",
+"中国自然资源报社",
+"CNN",
+"中央纪委国家监委新闻传播中心",
+"中国水利报社",
+"BBC",
+"耶路撒冷邮报",
+"中国报道杂志社",
+"中国石油报社",
+"彭博社",
+"中国电力传媒集团",
+"观察家报",
+"中国气象报社",
+"《纽约客》",
+"中国文艺报社",
+"光明日报社",
+"瑞士新苏黎世报",
+"福克斯新闻",
+"经济参考报社",
+"中国石化报社",
+"每日邮报",
+"贝塔斯曼",
+"《财富》杂志",
+"人民日报社",
+"俄罗斯卫星通讯社",
+"中国妇女杂志社",
+"日本时报",
+"中国医药报社",
+"半岛电视台媒体网络",
+"中国汽车报社",
+"人民画报社",
+"中国经营报社",
+"NBC新闻",
+"中国质量报刊社",
+"华盛顿邮报",
+"印度时报",
+"威望迪",
+"华尔街日报",
+"中国青年杂志社",
+"联合早报",
+"中国水利报社",
+"中国石油报社",
+"彭博社",
+"中国电力传媒集团",
+"观察家报",
+"中国气象报社",
+"《纽约客》",
+"中国文艺报社",
+"光明日报社",
+"瑞士新苏黎世报",
+"福克斯新闻",
+"经济参考报社",
+"中国石化报社",
+"每日邮报",
+"贝塔斯曼",
+"财富杂志",
+"人民日报社",
+"俄罗斯卫星通讯社",
+"中国妇女杂志社",
+"日本时报",
+"中国医药报社",
+"半岛电视台媒体网络",
+"中国汽车报社",
+"人民画报社",
+"中国经营报社",
+"NBC新闻",
+"中国质量报刊社",
+"华盛顿邮报",
+"印度时报",
+"威望迪",
+"华尔街日报",
+"中国青年杂志社",
+"联合早报",
+"中国艺术报社",
+"洛杉矶时报",
+"中国教育电视台",
+"朝鲜日报",
+"澳大利亚广播公司",
+"中国科学技术协会",
+"今日中国杂志社",
+"中国船舶报社",
+"波士顿环球报",
+"农民日报社",
+"中国消费者报社",
+"中国环境报社",
+"财经杂志社",
+"中国财经报社",
+"独立报",
+"南非广播公司",
+"法国国际广播电台",
+"中国科学技术协会",
+"今日中国杂志社",
+"中国船舶报社",
+"波士顿环球报",
+"农民日报社",
+"中国消费者报社",
+"中国环境报社",
+"财经杂志社",
+"中国财经报社",
+"独立报",
+"南非广播公司",
+"法国国际广播电台",
+"中国科学技术协会",
+"今日中国杂志社",
+"中国船舶报社",
+"波士顿环球报",
+"农民日报社",
+"中国消费者报社",
+"中国环境报社",
+"财经杂志社",
+"中国财经报社",
+"独立报",
+"南非广播公司",
+"法国国际广播电台",
+"荷兰电讯报",
+"时代周刊",
+"中国日报社",
+"解放军新闻传播中心",
+"中国文化报社",
+"今日俄罗斯",
+"工人日报社",
+"中国外文出版发行事业局",
+"中央日报",
+"芝加哥论坛报",
+"比利时晚报",
+"新闻集团",
+"中国教育报刊社",
+"健康报社",
+"人民政协报社",
+"法制日报社",
+"国土报",
+"印度报",
+"中国水利报社",
+"中国石油报社",
+"彭博社",
+"中国电力传媒集团",
+"观察家报",
+"中国气象报社",
+"纽约客",
+"中国文艺报社",
+"光明日报社",
+"瑞士新苏黎世报",
+"福克斯新闻",
+"经济参考报社",
+"中国石化报社",
+"每日邮报",
+"贝塔斯曼",
+"财富杂志",
+"人民日报社",
+"俄罗斯卫星通讯社",
+"中国妇女杂志社",
+"日本时报",
+"中国医药报社",
+"半岛电视台媒体网络",
+"中国汽车报社",
+"人民画报社",
+"中国经营报社",
+"NBC新闻",
+"中国质量报刊社",
+"华盛顿邮报",
+"印度时报",
+"威望迪",
+"华尔街日报",
+"中国青年杂志社",
+"联合早报",
+"中国艺术报社",
+"洛杉矶时报",
+"中国教育电视台",
+"朝鲜日报",
+"澳大利亚广播公司",
+"中国科学技术协会",
+"今日中国杂志社",
+"中国船舶报社",
+"波士顿环球报",
+"农民日报社",
+"中国消费者报社",
+"中国环境报社",
+"财经杂志社",
+"中国财经报社",
+"独立报",
+"南非广播公司",
+"法国国际广播电台",
+"荷兰电讯报",
+"《时代》周刊",
+"中国日报社",
+"解放军新闻传播中心",
+"中国文化报社",
+"今日俄罗斯",
+"工人日报社",
+"中国外文出版发行事业局",
+"中央日报",
+"芝加哥论坛报",
+"比利时晚报",
+"新闻集团",
+"中国教育报刊社",
+"健康报社",
+"人民政协报社",
+"法制日报社",
+"国土报",
+"印度报",
+"特莱维萨集团",
+"人民铁道报业有限公司",
+"明镜周刊",
+"世界报",
+"海峡之声广播电台",
+"卫报",
+"俄通社-塔斯社",
+"埃菲社",
+"中国林业报社",
+"每日镜报",
+"索尼集团",
+"中国社会科学报社",
+"人民法院新闻传媒总社",
+"经济日报社",
+"中国水利报社",
+"中国石油报社",
+"彭博社",
+"中国电力传媒集团",
+"观察家报",
+"中国气象报社",
+"《纽约客》",
+"中国文艺报社",
+"光明日报社",
+"瑞士新苏黎世报",
+"福克斯新闻",
+"经济参考报社",
+"中国石化报社",
+"每日邮报",
+"贝塔斯曼",
+"《财富》杂志",
+"人民日报社",
+"俄罗斯卫星通讯社",
+"中国妇女杂志社",
+"日本时报",
+"中国医药报社",
+"半岛电视台媒体网络",
+"中国汽车报社",
+"人民画报社",
+"中国经营报社",
+"NBC新闻",
+"中国质量报刊社",
+"华盛顿邮报",
+"印度时报",
+"威望迪",
+"华尔街日报",
+"中国青年杂志社",
+"联合早报",
+"中国艺术报社",
+"洛杉矶时报",
+"中国教育电视台",
+"朝鲜日报",
+"澳大利亚广播公司",
+"中国科学技术协会",
+"今日中国杂志社",
+"中国船舶报社",
+"波士顿环球报",
+"农民日报社",
+"中国消费者报社",
+"中国环境报社",
+"财经杂志社",
+"中国财经报社",
+"独立报",
+"南非广播公司",
+"法国国际广播电台",
+"荷兰电讯报",
+"《时代》周刊",
+"中国日报社",
+"解放军新闻传播中心",
+"中国文化报社",
+"今日俄罗斯",
+"工人日报社",
+"中国外文出版发行事业局",
+"中央日报",
+"芝加哥论坛报",
+"比利时晚报",
+"新闻集团",
+"中国教育报刊社",
+"健康报社",
+"人民政协报社",
+"法制日报社",
+"国土报",
+"印度报",
+"特莱维萨集团",
+"人民铁道报业有限公司",
+"明镜周刊",
+"世界报",
+"海峡之声广播电台",
+"卫报",
+"俄通社-塔斯社",
+"埃菲社",
+"中国林业报社",
+"每日镜报",
+"索尼集团",
+"中国社会科学报社",
+"人民法院新闻传媒总社",
+"经济日报社"
+];
+        
+        let labelIndex = 0;
+
+        for(let i = 0; i < INNER_COUNT; i++) {
+            if (i % 5 === 0) {
+                const region = regionCodes[labelIndex % regionCodes.length];
+                labelIndex++;
+
+                const sprite = makeTextSprite(region); 
+                sprite.position.set(innerPos[i*3], innerPos[i*3+1], innerPos[i*3+2]);
+                
+                sprite.scale.set(1.8, 0.45, 1); 
+                sprite.center.set(0.0, 0.5);
+                
+                earthGroup.add(sprite); 
+                innerLabels.push({ sprite: sprite, index: i });
+            }
+        }
+
+        const floatResult = createOrganicData(FLOAT_COUNT, EARTH_RADIUS + 5, EARTH_RADIUS + 15, 1.2);
+        const floatPos = floatResult.positions; const floatData = floatResult.moveData;
+        const floatGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(floatPos, 3));
+        skyGroup.add(new THREE.Points(floatGeo, new THREE.PointsMaterial({ color: 0x88ccff, size: 0.15, transparent: true, opacity: 0.5, map: loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/disc.png'), blending: THREE.AdditiveBlending, depthWrite: false })));
+        const floatLinePos = new Float32Array(FLOAT_COUNT * FLOAT_COUNT * 3);
+        const floatDynamicLineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(floatLinePos, 3).setUsage(THREE.DynamicDrawUsage));
+        skyGroup.add(new THREE.LineSegments(floatDynamicLineGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending })));
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 【修改 4】 核心动画逻辑
+            // rotation.x 增加 = 地球向观察者方向“向前滚”
+            earthGroup.rotation.x += 0.0015; 
+            
+            // 【关键】注释掉 Y 轴旋转，防止地球左右转
+            // earthGroup.rotation.y += 0.0008; 
+            
+            // 让外层粒子也跟着地球向前滚
+            skyGroup.rotation.x += 0.0015;
+
+            updateParticles(innerPos, innerData, INNER_COUNT, EARTH_RADIUS + 0.15, EARTH_RADIUS + 1.5, innerLinePos, INNER_CONNECT_DIST * INNER_CONNECT_DIST, innerDynamicLineGeo);
+            innerGeo.attributes.position.needsUpdate = true;
+            
+            for(let k = 0; k < innerLabels.length; k++) { 
+                const item = innerLabels[k]; 
+                item.sprite.position.set(innerPos[item.index*3], innerPos[item.index*3+1], innerPos[item.index*3+2]); 
+            }
+            
+            updateParticles(floatPos, floatData, FLOAT_COUNT, EARTH_RADIUS + 5, EARTH_RADIUS + 15, floatLinePos, FLOAT_CONNECT_DIST * FLOAT_CONNECT_DIST, floatDynamicLineGeo);
+            floatGeo.attributes.position.needsUpdate = true;
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

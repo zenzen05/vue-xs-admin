@@ -1,0 +1,294 @@
+<template>
+  <div ref="container" class="canvas-container"></div>
+</template>
+
+<script setup>
+import { onMounted, ref, onBeforeUnmount } from "vue";
+import * as THREE from "three";
+
+const container = ref(null);
+let scene, camera, renderer, globeGroup;
+
+const PARAMS = {
+  earthRadius: 9,
+  minFloatHeight: 0.8,
+  maxFloatHeight: 1.2,
+  nodeCount: 300,
+  nameList: ["java", "python", "vue", "javascript", "css", "golang", "c++", "html", "c#", "c"]
+};
+
+onMounted(() => {
+  initScene();
+  createGlobe();
+  createSuspendedNetwork();
+  animate();
+  window.addEventListener("resize", onWindowResize);
+});
+
+function initScene() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 15);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.value.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+  // --- 1. 物理光源：保持不变 ---
+  const mainLight = new THREE.PointLight(0xffffff, 600, 50);
+  mainLight.position.set(0, 5, -5);
+  scene.add(mainLight);
+
+  const flareTexture = createFlareTexture();
+
+  // --- 2. 主光晕 (Flare)：变大且更透明 ---
+  const flareMaterial = new THREE.SpriteMaterial({
+    map: flareTexture,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.9, 
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const flare = new THREE.Sprite(flareMaterial);
+  // 位置稍微往地球后方靠一点点 (-4)，让光看起来是从地平线后面升起的
+  flare.position.set(0, -1.5, -4); 
+  flare.scale.set(10, 10, 1); // 压扁一点，更符合地平线弧度
+  scene.add(flare);
+
+  // --- 3. 横向光束 (Beam)：极薄、极长 ---
+  const beamMaterial = new THREE.SpriteMaterial({
+    map: flareTexture,
+    color: 0x99bbff,
+    transparent: true,
+    opacity: 0.25, // 降低不透明度，追求若隐若现的效果
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const beam = new THREE.Sprite(beamMaterial);
+  beam.position.set(0, -1.5, -4.5); 
+  beam.scale.set(60, 2, 1); // X极大，Y极小，形成那条细长的水平亮线
+  scene.add(beam);
+
+  globeGroup = new THREE.Group();
+  globeGroup.position.y = -10.5;
+  scene.add(globeGroup);
+}
+function createFlareTexture() {
+  const canvas = document.createElement('canvas');
+  const size = 1024; // 提高分辨率，边缘会更细腻
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+
+  const gradient = context.createRadialGradient(
+    size / 2, size / 2, 0,
+    size / 2, size / 2, size / 2
+  );
+
+  // --- 模拟物理光照的非线性衰减 ---
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');      // 中心最亮
+  gradient.addColorStop(0.1, 'rgba(230, 240, 255, 0.6)'); // 核心区极快过渡
+  gradient.addColorStop(0.2, 'rgba(200, 220, 255, 0.5)'); // 扩散区
+  gradient.addColorStop(0.3, 'rgba(150, 180, 255, 0.4)'); // 边缘开始虚化
+  gradient.addColorStop(0.4, 'rgba(100, 150, 255, 0.3)'); // 极淡的余晖
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');           // 彻底透明
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
+function createGlobe() {
+  const loader = new THREE.TextureLoader();
+
+  // 地球材质：增加镜面高光，反射顶部光线
+  const earthGeo = new THREE.SphereGeometry(PARAMS.earthRadius, 64, 64);
+  const earthMat = new THREE.MeshPhongMaterial({
+    map: loader.load(
+      "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
+    ),
+    bumpMap: loader.load(
+      "https://threejs.org/examples/textures/planets/earth_normal_2048.jpg",
+    ),
+    bumpScale: 0.5,
+    specularMap: loader.load(
+      "https://threejs.org/examples/textures/planets/earth_specular_2048.jpg",
+    ),
+    specular: new THREE.Color("#333333"), // 增加高光反射颜色
+    shininess: 5, // 调高光泽度
+    color: 0x888888, // 提高基础亮度
+  });
+  const earth = new THREE.Mesh(earthGeo, earthMat);
+  globeGroup.add(earth);
+
+  // 云层
+  const cloudGeo = new THREE.SphereGeometry(PARAMS.earthRadius + 0.1, 64, 64);
+  const cloudMat = new THREE.MeshPhongMaterial({
+    map: loader.load(
+      "https://threejs.org/examples/textures/planets/earth_clouds_1024.png",
+    ),
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending, // 让云层在强光下发亮
+  });
+  globeGroup.add(new THREE.Mesh(cloudGeo, cloudMat));
+}
+function createLabelSprite(text) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontSize = 20;
+  ctx.font = `${fontSize}px Arial`;
+  
+  // 测量文字宽度以设置 canvas 大小
+  const textMetrics = ctx.measureText(text);
+  canvas.width = textMetrics.width + 20; // 留点边距
+  canvas.height = fontSize + 20;
+
+  // 重新设置字体（重置 canvas 尺寸后 ctx 属性会失效）
+  ctx.font = `${fontSize}px Arial`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  
+  // 文字发光效果（可选）
+  ctx.shadowColor = "rgba(0, 255, 255, 0.8)";
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillText(text, 10, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMaterial = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: true, // 开启深度测试，被地球挡住时消失
+    sizeAttenuation: true // 远小近大
+  });
+
+  const sprite = new THREE.Sprite(spriteMaterial);
+  // 控制文字显示的大小缩放
+  sprite.scale.set(canvas.width / 90, canvas.height / 90, 1); 
+  return sprite;
+}
+// --- 修改后的 createSuspendedNetwork 函数 ---
+function createSuspendedNetwork() {
+  const nodes = [];
+
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0xf0f5ff,
+    transparent: true,
+    opacity: 0.2,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const pointMap = createPointTexture();
+  const pointsMaterial = new THREE.PointsMaterial({
+    map: pointMap,
+    size: 0.3,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  const jitterAmount = 0.15;
+
+  for (let i = 0; i < PARAMS.nodeCount; i++) {
+    const y = 1 - (i / (PARAMS.nodeCount - 1)) * 2;
+    const radius = Math.sqrt(1 - y * y);
+    const theta = phi * i;
+
+    let x = Math.cos(theta) * radius;
+    let z = Math.sin(theta) * radius;
+
+    x += (Math.random() - 0.5) * jitterAmount;
+    const tempY = y + (Math.random() - 0.5) * jitterAmount;
+    z += (Math.random() - 0.5) * jitterAmount;
+
+    const r = PARAMS.earthRadius + PARAMS.minFloatHeight + Math.random() * (PARAMS.maxFloatHeight - PARAMS.minFloatHeight);
+
+    const pos = new THREE.Vector3(x, tempY, z).normalize().multiplyScalar(r);
+    nodes.push(pos);
+
+    // --- 重点：添加文字标签 ---
+    // 如果 i 小于 nameList 的长度，则在这个节点右侧添加文字
+    if (true) {
+      const label = createLabelSprite(PARAMS.nameList[i%PARAMS.nameList.length]);
+      
+      // 设置文字位置：节点位置 + 稍微向右偏移
+      label.position.copy(pos);
+      
+      // 计算一个向外的偏移，防止文字和点重叠
+      const offset = pos.clone().normalize().multiplyScalar(0.5);
+      label.position.add(offset);
+      
+      globeGroup.add(label);
+    }
+  }
+
+  // ... 连线逻辑保持不变 ...
+  const linePositions = [];
+  const maxConnectDistance = 2.6;
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dist = nodes[i].distanceTo(nodes[j]);
+      if (dist < maxConnectDistance) {
+        linePositions.push(nodes[i].x, nodes[i].y, nodes[i].z);
+        linePositions.push(nodes[j].x, nodes[j].y, nodes[j].z);
+      }
+    }
+  }
+
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePositions, 3));
+  globeGroup.add(new THREE.LineSegments(lineGeo, lineMaterial));
+
+  const pGeo = new THREE.BufferGeometry().setFromPoints(nodes);
+  globeGroup.add(new THREE.Points(pGeo, pointsMaterial));
+}
+
+function createPointTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.4, "rgba(0, 255, 255, 0.6)");
+  gradient.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  globeGroup.rotation.x += 0.001;
+  renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+
+<style scoped>
+.canvas-container {
+  width: 100vw;
+  height: 100vh;
+  /* 调整背景渐变，使最亮的部分位于地球顶部上方 */
+  background: radial-gradient(circle at 50% 35%, #1e4572 0%, #000 70%);
+  overflow: hidden;
+}
+</style>

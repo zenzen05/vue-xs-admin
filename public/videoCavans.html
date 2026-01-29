@@ -1,0 +1,40 @@
+<template>
+  <canvas ref="canvasRef"></canvas>
+</template>
+
+<script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import sp from './video.mp4'
+const canvasRef = ref(null)
+let video = null
+let rafId = null
+
+onMounted(() => {
+  video = document.createElement('video')
+  video.src =sp
+  video.crossOrigin = 'anonymous'
+  video.muted = true
+  video.loop = true
+  video.playsInline = true
+  video.play()
+  const canvas = canvasRef.value
+  const ctx = canvas.getContext('2d')
+  video.addEventListener('loadedmetadata', () => {
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    render()
+  })
+  function render() {
+    // ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, 0, 0, 200, 200)
+    rafId = requestAnimationFrame(render)
+  }
+})
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(rafId)
+  video.pause()
+  video.src = ''
+  video = null
+})
+</script>
